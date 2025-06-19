@@ -8,12 +8,6 @@ enum Direction {
     West,
 }
 
-#[derive(Component)]
-struct Position {
-    x: f32,
-    y: f32,
-}
-
 struct Turn {
     position: Position,
     direction: Direction,
@@ -22,12 +16,6 @@ struct Turn {
 #[derive(Component)]
 struct Turns(Vec<Turn>);
 
-#[derive(Component)]
-struct Length(i16);
-
-#[derive(Component)]
-struct Snake;
-
 #[derive(Bundle)]
 struct Primitive {
     shape: Mesh2d,
@@ -35,11 +23,8 @@ struct Primitive {
 }
 
 #[derive(Bundle)]
-struct SnakeBundle {
-    marker: Snake,
+struct SnakeHead {
     direction: Direction,
-    position: Position,
-    length: Length,
     turns: Turns,
     trans: Transform,
     body: Primitive,
@@ -63,11 +48,9 @@ fn setup(
     let shape = meshes.add(Rectangle::new(10., 10.));
     let color = materials.add(Color::srgba(0f32, 1f32, 0f32, 1f32));
 
-    commands.spawn(SnakeBundle {
-        marker: Snake,
+    commands.spawn(SnakeHead {
         direction: Direction::South,
         position: Position { x: 0., y: 0. },
-        length: Length(3),
         turns: Turns(vec![]),
         trans: Transform {
             translation: Vec3 {
