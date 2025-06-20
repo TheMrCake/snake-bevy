@@ -1,20 +1,40 @@
+use std::collections::VecDeque;
+
 use bevy::prelude::*;
 
 #[derive(Component)]
-enum Direction {
-    North,
-    East,
-    South,
-    West,
+struct Direction(Vec3);
+
+impl Direction {
+    const NORTH: Direction = Direction(Vec3 {
+        x: 0f32,
+        y: 1f32,
+        z: 0f32,
+    });
+    const EAST: Direction = Direction(Vec3 {
+        x: 0f32,
+        y: 1f32,
+        z: 0f32,
+    });
+    const SOUTH: Direction = Direction(Vec3 {
+        x: 0f32,
+        y: 1f32,
+        z: 0f32,
+    });
+    const WEST: Direction = Direction(Vec3 {
+        x: 0f32,
+        y: 1f32,
+        z: 0f32,
+    });
 }
 
 struct Turn {
-    position: Position,
     direction: Direction,
+    time: Time,
 }
 
 #[derive(Component)]
-struct Turns(Vec<Turn>);
+struct Turns(VecDeque<Turn>);
 
 #[derive(Bundle)]
 struct Primitive {
@@ -27,7 +47,15 @@ struct SnakeHead {
     direction: Direction,
     turns: Turns,
     trans: Transform,
-    body: Primitive,
+    segment: Primitive,
+}
+
+#[derive(Bundle)]
+struct SnakeBody {
+    direction: Direction,
+    turns: Turns,
+    trans: Transform,
+    segment: Primitive,
 }
 
 fn main() {
@@ -49,9 +77,8 @@ fn setup(
     let color = materials.add(Color::srgba(0f32, 1f32, 0f32, 1f32));
 
     commands.spawn(SnakeHead {
-        direction: Direction::South,
-        position: Position { x: 0., y: 0. },
-        turns: Turns(vec![]),
+        direction: Direction::SOUTH,
+        turns: Turns(VecDeque::new()),
         trans: Transform {
             translation: Vec3 {
                 x: 0.,
@@ -60,11 +87,16 @@ fn setup(
             },
             ..default()
         },
-        body: Primitive {
+        segment: Primitive {
             shape: Mesh2d(shape),
             color: MeshMaterial2d::<ColorMaterial>(color),
         },
     });
 }
 
-fn move_snake() {}
+fn move_snake(mut query: Query<(&mut Transform, &Direction)>) {
+    // const SPEED: i32 = 1;
+    query
+        .iter_mut()
+        .for_each(|(mut trans, direction)| trans.translation += direction.0);
+}
