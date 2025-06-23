@@ -121,7 +121,7 @@ fn turn_snake_segment(mut query: Query<(&mut Turns, &mut Direction)>) {
     query.iter_mut().for_each(|(mut turns, mut direction)| {
         // dbg!(&turns.0);
         if let Some(turn) = turns.0.pop_front() {
-            dbg!(&turn.timer);
+            // dbg!(&turn.timer);
             if turn.timer.finished() {
                 *direction = turn.direction;
             } else {
