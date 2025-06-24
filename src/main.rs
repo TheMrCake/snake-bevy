@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 
 const SPEED: f32 = 1f32;
 
@@ -68,10 +68,16 @@ struct SnakeSegment {
     segment_number: SegmentNumber,
 }
 
+#[derive(Bundle)]
+struct Food {
+    trans: Transform,
+    food: Primitive,
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins((DefaultPlugins,))
-        .add_systems(Startup, setup);
+        .add_systems(Startup, (setup, spawn_food));
     app.add_systems(
         Update,
         (move_snake_segment, turn_snake_segment, keyboard_input),
@@ -163,4 +169,28 @@ fn keyboard_input(
             }
         });
     });
+}
+
+fn spawn_food(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let shape = meshes.add(Rectangle::new(10., 10.));
+    let color = materials.add(Color::srgba(1f32, 0f32, 0f32, 1f32));
+
+    let x = (fastrand::f32() - fastrand::f32()) * 1000f32;
+    let y = (fastrand::f32() - fastrand::f32()) * 1000f32;
+    let z = (fastrand::f32() - fastrand::f32()) * 1000f32;
+
+    commands.spawn((
+        Food {
+            trans: Transform::from_xyz(x, y, z),
+            food: Primitive {
+                shape: Mesh2d(shape),
+                color: MeshMaterial2d::<ColorMaterial>(color),
+            },
+        },
+        Head,
+    ));
 }
