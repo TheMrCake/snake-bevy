@@ -1,13 +1,16 @@
-use std::collections::VecDeque;
+use std::{any::Any, collections::VecDeque};
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{
+    math::bounding::{Aabb2d, IntersectsVolume},
+    prelude::*,
+};
 
 const SPEED: f32 = 1f32;
 
-#[derive(Resource, Default)]
-struct GameState {
-    snake_length: i32,
-}
+// #[derive(Resource, Default)]
+// struct GameState {
+//     snake_length: i32,
+// }
 
 #[derive(Component, Copy, Clone, Debug)]
 struct Direction(Vec3);
@@ -52,6 +55,16 @@ struct Primitive {
 
 #[derive(Component)]
 struct SegmentNumber(i32);
+
+#[derive(Component)]
+struct Collider;
+
+#[derive(Event)]
+enum CollisionEvent {
+    SnakeOnSnake,
+    SnakeOnFood,
+    Unknown,
+}
 
 #[derive(Component)]
 struct Head;
@@ -113,6 +126,7 @@ fn setup(
             },
             segment_number: SegmentNumber(0),
         },
+        Collider,
         Head,
     ));
 }
@@ -191,6 +205,39 @@ fn spawn_food(
                 color: MeshMaterial2d::<ColorMaterial>(color),
             },
         },
-        Head,
+        Collider,
     ));
+}
+
+fn detect_collision(
+    mut collision_events: EventWriter<CollisionEvent>,
+    query: Query<(Entity, &GlobalTransform), With<Collider>>,
+) {
+    // Get iterators for all colliders
+    let mut iter = query.iter().map(|(entity, trans)| {
+        (
+            entity,
+            Aabb2d::new(trans.translation().truncate(), trans.scale().truncate()),
+        )
+    });
+
+    while let Some((entity_1, aabb_1)) = iter.next() {
+        // `computed_aabb1` is already in world space! No manual transformation needed.
+
+        for (entity_2, aabb_2) in iter.clone() {
+            // Clone the iterator to avoid re-checking pairs
+            if entity_1 == entity_2 {
+                continue;
+            } // Don't check self-intersection
+
+            // Check for intersection using the `intersects()` method
+            if aabb_1.intersects(&aabb_2) {
+                info!(
+                    "Collision detected between {:?} and {:?}",
+                    entity_1, entity_2
+                );
+                // collision_events.write(CollisionEvent::SnakeOnSnake);
+            }
+        }
+    }
 }
