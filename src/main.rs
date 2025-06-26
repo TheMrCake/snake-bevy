@@ -1,4 +1,4 @@
-use std::{any::Any, collections::VecDeque};
+use std::collections::VecDeque;
 
 use bevy::{
     math::bounding::{Aabb2d, IntersectsVolume},
@@ -59,18 +59,17 @@ struct SegmentNumber(i32);
 #[derive(Component)]
 struct Collider;
 
-#[derive(Event)]
+#[derive(Event, Copy, Clone)]
 enum CollisionEvent {
-    SnakeOnSnake,
-    SnakeOnFood,
-    Unknown,
+    ItemPickedUp(Item),
+    PlayerKilled,
 }
 
 #[derive(Component)]
 struct Head;
 
 #[derive(Component)]
-struct Body;
+struct PlayerKiller;
 
 #[derive(Bundle)]
 struct SnakeSegment {
@@ -81,10 +80,28 @@ struct SnakeSegment {
     segment_number: SegmentNumber,
 }
 
+#[derive(Component, Clone, Copy)]
+enum Item {
+    Food,
+}
+
 #[derive(Bundle)]
 struct Food {
     trans: Transform,
-    food: Primitive,
+    prim: Primitive,
+    item: Item,
+}
+
+impl Food {
+    const ITEM: Item = Item::Food;
+
+    fn new(trans: Transform, prim: Primitive) -> Food {
+        Food {
+            trans,
+            prim,
+            item: Food::ITEM,
+        }
+    }
 }
 
 fn main() {
@@ -198,46 +215,44 @@ fn spawn_food(
     let z = (fastrand::f32() - fastrand::f32()) * 1000f32;
 
     commands.spawn((
-        Food {
+        Food::new(
             trans: Transform::from_xyz(x, y, z),
             food: Primitive {
                 shape: Mesh2d(shape),
                 color: MeshMaterial2d::<ColorMaterial>(color),
-            },
-        },
+            }
+        ),
         Collider,
     ));
 }
 
 fn detect_collision(
-    mut collision_events: EventWriter<CollisionEvent>,
-    query: Query<(Entity, &GlobalTransform), With<Collider>>,
+    head_transform: &GlobalTransform,
+    colliders_transforms: Vec<&GlobalTransform>,
+    mut event_writer: EventWriter<CollisionEvent>,
+    event: &CollisionEvent,
 ) {
     // Get iterators for all colliders
-    let mut iter = query.iter().map(|(entity, trans)| {
-        (
-            entity,
-            Aabb2d::new(trans.translation().truncate(), trans.scale().truncate()),
-        )
-    });
+    let mut iter = colliders_transforms
+        .iter()
+        .map(|trans| Aabb2d::new(trans.translation().truncate(), trans.scale().truncate()));
 
-    while let Some((entity_1, aabb_1)) = iter.next() {
-        // `computed_aabb1` is already in world space! No manual transformation needed.
+    let head_aabb = Aabb2d::new(
+        head_transform.translation().truncate(),
+        head_transform.scale().truncate(),
+    );
 
-        for (entity_2, aabb_2) in iter.clone() {
-            // Clone the iterator to avoid re-checking pairs
-            if entity_1 == entity_2 {
-                continue;
-            } // Don't check self-intersection
-
-            // Check for intersection using the `intersects()` method
-            if aabb_1.intersects(&aabb_2) {
-                info!(
-                    "Collision detected between {:?} and {:?}",
-                    entity_1, entity_2
-                );
-                // collision_events.write(CollisionEvent::SnakeOnSnake);
-            }
+    while let Some(aabb) = iter.next() {
+        if aabb.intersects(&head_aabb) {
+            event_writer.write(event.clone());
         }
     }
+}
+
+fn detect_collision_player_kill(
+    event_writer: EventWriter<CollisionEvent>,
+    collider_query: Query<&GlobalTransform, (With<Collider>, Without<PlayerKiller>)>,
+    head_query: Single<&GlobalTransform, With<Head>>,
+) {
+    detect_collision(head_query.into_inner(), collider_query.iter().collect(), event_writer, &CollisionEvent::PlayerKilled);
 }
