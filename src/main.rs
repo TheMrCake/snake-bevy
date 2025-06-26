@@ -1,13 +1,16 @@
 use std::collections::VecDeque;
 
-use bevy::prelude::*;
+use bevy::{
+    math::bounding::{Aabb2d, IntersectsVolume},
+    prelude::*,
+};
 
 const SPEED: f32 = 1f32;
 
-#[derive(Resource, Default)]
-struct GameState {
-    snake_length: i32,
-}
+// #[derive(Resource, Default)]
+// struct GameState {
+//     snake_length: i32,
+// }
 
 #[derive(Component, Copy, Clone, Debug)]
 struct Direction(Vec3);
@@ -54,10 +57,19 @@ struct Primitive {
 struct SegmentNumber(i32);
 
 #[derive(Component)]
+struct Collider;
+
+#[derive(Event, Copy, Clone)]
+enum CollisionEvent {
+    ItemPickedUp(Item),
+    PlayerKilled,
+}
+
+#[derive(Component)]
 struct Head;
 
 #[derive(Component)]
-struct Body;
+struct PlayerKiller;
 
 #[derive(Bundle)]
 struct SnakeSegment {
@@ -68,10 +80,34 @@ struct SnakeSegment {
     segment_number: SegmentNumber,
 }
 
+#[derive(Component, Clone, Copy)]
+enum Item {
+    Food,
+}
+
+#[derive(Bundle)]
+struct Food {
+    trans: Transform,
+    prim: Primitive,
+    item: Item,
+}
+
+impl Food {
+    const ITEM: Item = Item::Food;
+
+    fn new(trans: Transform, prim: Primitive) -> Food {
+        Food {
+            trans,
+            prim,
+            item: Food::ITEM,
+        }
+    }
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins((DefaultPlugins,))
-        .add_systems(Startup, setup);
+        .add_systems(Startup, (setup, spawn_food));
     app.add_systems(
         Update,
         (move_snake_segment, turn_snake_segment, keyboard_input),
@@ -107,6 +143,7 @@ fn setup(
             },
             segment_number: SegmentNumber(0),
         },
+        Collider,
         Head,
     ));
 }
@@ -163,4 +200,59 @@ fn keyboard_input(
             }
         });
     });
+}
+
+fn spawn_food(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let shape = meshes.add(Rectangle::new(10., 10.));
+    let color = materials.add(Color::srgba(1f32, 0f32, 0f32, 1f32));
+
+    let x = (fastrand::f32() - fastrand::f32()) * 1000f32;
+    let y = (fastrand::f32() - fastrand::f32()) * 1000f32;
+    let z = (fastrand::f32() - fastrand::f32()) * 1000f32;
+
+    commands.spawn((
+        Food::new(
+            trans: Transform::from_xyz(x, y, z),
+            food: Primitive {
+                shape: Mesh2d(shape),
+                color: MeshMaterial2d::<ColorMaterial>(color),
+            }
+        ),
+        Collider,
+    ));
+}
+
+fn detect_collision(
+    head_transform: &GlobalTransform,
+    colliders_transforms: Vec<&GlobalTransform>,
+    mut event_writer: EventWriter<CollisionEvent>,
+    event: &CollisionEvent,
+) {
+    // Get iterators for all colliders
+    let mut iter = colliders_transforms
+        .iter()
+        .map(|trans| Aabb2d::new(trans.translation().truncate(), trans.scale().truncate()));
+
+    let head_aabb = Aabb2d::new(
+        head_transform.translation().truncate(),
+        head_transform.scale().truncate(),
+    );
+
+    while let Some(aabb) = iter.next() {
+        if aabb.intersects(&head_aabb) {
+            event_writer.write(event.clone());
+        }
+    }
+}
+
+fn detect_collision_player_kill(
+    event_writer: EventWriter<CollisionEvent>,
+    collider_query: Query<&GlobalTransform, (With<Collider>, Without<PlayerKiller>)>,
+    head_query: Single<&GlobalTransform, With<Head>>,
+) {
+    detect_collision(head_query.into_inner(), collider_query.iter().collect(), event_writer, &CollisionEvent::PlayerKilled);
 }
